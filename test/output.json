@@ -1,0 +1,24 @@
+{
+  "outputs": [
+    {
+      "topic": "comp_test",
+      "value": {
+          "ComponentAbsenceAfterPick": 0,
+          "ComponentAbsenceBeforePlace": 0,
+          "ComponentMaterialDefect": 0,
+          "TreatmentError": 0,
+          "DroppedError": 0
+        }
+    },
+    {
+      "topic": "comp_test",
+      "value": {
+          "ComponentAbsenceAfterPick": 0,
+          "ComponentAbsenceBeforePlace": 0,
+          "ComponentMaterialDefect": 0,
+          "TreatmentError": 0,
+          "DroppedError": 0
+        }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+*****************************************************************************************
+***************DEPLOY KSQL SCRIPT *******************************************************
+*****************************************************************************************
+
+tr '\n' ' ' < src/ksql-script.sql | \
+sed 's/;/;\'$'\n''/g' | \
+while read stmt; do
+    echo '{"ksql":"'$stmt'", "streamsProperties": {}}' | \
+        curl -s -X "POST" "http://localhost:8088/ksql" \
+             -H "Content-Type: application/vnd.ksql.v1+json; charset=utf-8" \
+             -d @- | \
+        jq
+done
+
+*****************************************************************************************
+***************DEPLOY CONNECTOR *********************************************************
+*****************************************************************************************
+
+curl -i -X PUT http://localhost:8083/connectors/aoi_SAF831496TOP_V05_insp_board/config -H "Content-Type: application/json" -d '{ "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector", "timestamp.column.name": "insp_st_time", "incrementing.column.name": "board_id", "connection.password": "1234", "validate.non.null": "false", "tasks.max": "1", "query": "SELECT insp_st_time,  barcode, pass_code, defect_type, defect_code, board_id, line_no, lot_no, user_id, tack_time, module_good, module_ng, module_userok, module_skip, part_good, part_ng, part_userok, part_skip, slave_job FROM spc_a8hl16_038_2021020115590642.insp_board", "mode": "timestamp", "topic.prefix": "aoi_SAF831496TOP_V05_insp_board", "connection.user": "root", "connection.url": "jdbc:mysql://10.25.14.54:3306/spc_a8hl16_038_2021020115590642?zeroDateTimeBehavior=convertToNull"}'
+
+
