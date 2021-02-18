@@ -5,6 +5,7 @@ services:
     image: confluentinc/cp-zookeeper:6.0.0
     hostname: zookeeper
     container_name: zookeeper
+    restart: always
     ports:
       - "2181:2181"
     environment:
@@ -15,6 +16,7 @@ services:
     image: confluentinc/cp-kafka:6.0.0
     hostname: broker
     container_name: broker
+    restart: always
     depends_on:
       - zookeeper
     ports:
@@ -24,7 +26,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://10.25.8.243:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://10.25.249.5:9092
       KAFKA_CONFLUENT_SCHEMA_REGISTRY_URL: http://schema-registry:8081
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -35,6 +37,7 @@ services:
     image: confluentinc/cp-schema-registry:6.0.0
     hostname: schema-registry
     container_name: schema-registry
+    restart: always
     depends_on:
       - broker
     ports:
@@ -49,6 +52,7 @@ services:
     image: debezium/connect:1.4
     hostname: connect_debezium
     container_name: connect_debezium
+    restart: always
     depends_on:
       - zookeeper
       - broker
@@ -56,10 +60,10 @@ services:
       - zookeeper
       - broker
     ports:
-      - "28083:28083"
+      - "8084:8084"
     environment:
       BOOTSTRAP_SERVERS: 'broker:29092'
-      ADVERTISED_PORT: 28083
+      ADVERTISED_PORT: 8084
       GROUP_ID: "connect-debezium-group"
       CONFIG_STORAGE_TOPIC: debezium-connect-configs
       OFFSET_STORAGE_TOPIC: debezium-connect-offsets
@@ -72,6 +76,7 @@ services:
     image: confluentinc/cp-kafka-connect:6.0.0
     hostname: connect
     container_name: connect
+    restart: always
     depends_on:
       - broker
       - schema-registry
@@ -97,6 +102,9 @@ services:
       CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
       CONNECT_LOG4J_LOGGERS: org.apache.zookeeper=ERROR,org.I0Itec.zkclient=ERROR,org.reflections=ERROR
       CLASSPATH: /usr/share/confluent-hub-components/confluentinc-kafka-connect-jdbc/lib/*
+      #CLASSPATH: /usr/share/java/monitoring-interceptors/monitoring-interceptors-6.0.0.jar
+      #CONNECT_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      #CONNECT_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
     command: 
       - /bin/bash
       - -c 
@@ -109,13 +117,15 @@ services:
         confluent-hub install --no-prompt jcustenborder/kafka-connect-transform-xml:0.1.0.20
         # JDBC Drivers
         # ------------
+        # MySQL
         echo "Downloading JDBC drivers"
         cd /usr/share/confluent-hub-components/confluentinc-kafka-connect-jdbc/lib
-        # MySQL
         curl https://repo1.maven.org/maven2/mysql/mysql-connector-java/5.1.46/mysql-connector-java-5.1.46.jar --output mysql-connector-java-5.1.46.jar
         # MS SQL
+        #cd /usr/share/java/kafka-connect-jdbc/
         curl https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/7.0.0.jre8/mssql-jdbc-7.0.0.jre8.jar --output mssql-jdbc-7.0.0.jre8.jar
         # Oracle
+        #cd /usr/share/java/kafka-connect-jdbc/
         curl https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc8/19.8.0.0/ojdbc8-19.8.0.0.jar --output ojdbc8-19.8.0.0.jar
         # Launch the Kafka Connect worker
         /etc/confluent/docker/run &
@@ -126,6 +136,7 @@ services:
     image: confluentinc/ksqldb-server:0.14.0
     hostname: ksqldb-server
     container_name: ksqldb-server
+    restart: always
     depends_on:
       - broker
       - connect
@@ -135,7 +146,7 @@ services:
     volumes:
       - "./extensions/:/opt/ksqldb-udfs"
     environment:
-      KSQL_CONFIG_DIR: "/etc/ksqldb"
+      KSQL_CONFIG_DIR: "/etc/ksql"
       KSQL_BOOTSTRAP_SERVERS: "broker:29092"
       KSQL_HOST_NAME: ksqldb-server
       KSQL_LISTENERS: "http://0.0.0.0:8088"
@@ -164,6 +175,7 @@ services:
   ksqldb-cli:
     image: confluentinc/ksqldb-cli:0.14.0
     container_name: ksqldb-cli
+    restart: always
     depends_on:
       - broker
       - ksqldb-server
@@ -174,18 +186,18 @@ services:
       - ./src:/opt/app/src
       - ./test:/opt/app/test
     entrypoint: 
-    - /bin/bash
-    - -c
-    - |
-      echo -e "\n\n⏳ Waiting for KSQL to be available before launching CLI\n"
-      while [ $$(curl -s -o /dev/null -w %{http_code} http://ksqldb-server:8088/) -eq 000 ]; do 
-        echo -e $$(date) "KSQL Server HTTP state: " $$(curl -s -o /dev/null -w %{http_code} http://ksqldb-server:8088/) " (waiting for 200)"
-        sleep 5
-      done
-      echo -e "\n\n-> Running KSQL commands\n"
-      cat /opt/app/src/ksql-script.sql <(echo 'EXIT')| ksql http://ksqldb-server:8088
-      echo -e "\n\n-> Sleeping…\n"
-      sleep infinity
+      - /bin/bash
+      - -c
+      - |
+        echo -e "\n\n⏳ Waiting for KSQL to be available before launching CLI\n"
+        while [ $$(curl -s -o /dev/null -w %{http_code} http://ksqldb-server:8088/) -eq 000 ]; do 
+          echo -e $$(date) "KSQL Server HTTP state: " $$(curl -s -o /dev/null -w %{http_code} http://ksqldb-server:8088/) " (waiting for 200)"
+          sleep 5
+        done
+        #echo -e "\n\n-> Running KSQL commands\n"
+        #cat /opt/app/src/ksql-script.sql <(echo 'EXIT')| ksql http://ksqldb-server:8088
+        echo -e "\n\n-> Sleeping…\n"
+        sleep infinity
 
   rest-proxy:
     image: confluentinc/cp-kafka-rest:6.0.0
@@ -196,6 +208,7 @@ services:
       - 8082:8082
     hostname: rest-proxy
     container_name: rest-proxy
+    restart: always
     environment:
       KAFKA_REST_HOST_NAME: rest-proxy
       KAFKA_REST_BOOTSTRAP_SERVERS: 'broker:29092'
@@ -204,6 +217,7 @@ services:
       
   akhq:
     image: tchiotludo/akhq
+    restart: always
     environment:
       AKHQ_CONFIGURATION: |
         akhq:
@@ -218,7 +232,7 @@ services:
                   url: "http://connect:8083"
               connect_debezium:
                 - name: "connect_debezium"
-                  url: "http://connect_debezium:28083"
+                  url: "http://connect_debezium:8084"
     ports:
       - 8080:8080
     links:
@@ -226,3 +240,4 @@ services:
       - schema-registry
       - connect
       - connect_debezium
+
